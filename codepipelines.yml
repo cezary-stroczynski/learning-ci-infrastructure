@@ -169,7 +169,7 @@ Resources:
     Type: AWS::CodePipeline::Pipeline
     Properties:
       RoleArn: !GetAtt CodePipelineRole.Arn
-      Name: test-current-infrastructure
+      Name: update-infrastructure
       Stages:
         - Name: Source
           Actions:
@@ -184,11 +184,11 @@ Resources:
                 - Name: SourceArtifacts
               Configuration:
                 S3Bucket: !Ref ArtifactsBucketName
-                S3ObjectKey: staging/infrastructure/current/main.zip
+                S3ObjectKey: !Sub ${Environment}/infrastructure/${CurrentTag}/main.zip
                 PollForSourceChanges: False
               RunOrder: 1
 
-        - Name: EnforeSecurityTransform
+        - Name: EnforceSecurityTransform
           Actions:
             - Name: EnforeSecurityTransform
               ActionTypeId:
