@@ -2,9 +2,11 @@ AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 
 Parameters:
+  CloudFormationRole:
+    Type: String
   ArtifactsBucketName:
     Type: String
-    Description: The name of S3 bucket where .zip file with artifact is stored
+    Description: Name of S3 bucket where .zip file with artifact is stored
   CurrentTag:
     Type: String
     Default: current
@@ -29,68 +31,68 @@ Parameters:
     Description: The build image to use for building the app
 
 Resources:
-  CloudFormationRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - codebuild.amazonaws.com
-                - cloudformation.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      Path: "/"
-      Policies:
-        - PolicyName: codepipeline-service
-          PolicyDocument:
-            Statement:
-              - Action:
-                  - s3:GetObject
-                  - s3:GetObjectVersion
-                  - s3:GetBucketVersioning
-                Resource: "*"
-                Effect: Allow
-              - Action:
-                  - cloudformation:*
-                  - iam:*
-                  - lambda:*
-                  - s3:*
-                  - cloudfront:*
-                  - cloudtrail:*
-                  - codepipeline:*
-                  - route53:*
-                  - events:*
-                  - ec2:*
-                  - secretsmanager:*
-                  - cognito-idp:*
-                  - rds:*
-                  - elasticloadbalancing:*
-                  - ecs:DescribeClusters
-                  - servicecatalog:DescribeProductAsAdmin
-                  - elasticache:DescribeCacheClusters
-                  - codedeploy:*
-                  - servicecatalog:*
-                  - apigateway:*
-                  - codebuild:*
-                  - sts:*
-                  - sqs:*
-                  - ecs:RegisterTaskDefinition
-                  - ecs:DeregisterTaskDefinition
-                  - ssm:*
-                  - logs:*
+  # CloudFormationRole:
+  #   Type: AWS::IAM::Role
+  #   Properties:
+  #     AssumeRolePolicyDocument:
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service:
+  #               - codebuild.amazonaws.com
+  #               - cloudformation.amazonaws.com
+  #           Action:
+  #             - sts:AssumeRole
+  #     Path: "/"
+  #     Policies:
+  #       - PolicyName: codepipeline-service
+  #         PolicyDocument:
+  #           Statement:
+  #             - Action:
+  #                 - s3:GetObject
+  #                 - s3:GetObjectVersion
+  #                 - s3:GetBucketVersioning
+  #               Resource: "*"
+  #               Effect: Allow
+  #             - Action:
+  #                 - cloudformation:*
+  #                 - iam:*
+  #                 - lambda:*
+  #                 - s3:*
+  #                 - cloudfront:*
+  #                 - cloudtrail:*
+  #                 - codepipeline:*
+  #                 - route53:*
+  #                 - events:*
+  #                 - ec2:*
+  #                 - secretsmanager:*
+  #                 - cognito-idp:*
+  #                 - rds:*
+  #                 - elasticloadbalancing:*
+  #                 - ecs:DescribeClusters
+  #                 - servicecatalog:DescribeProductAsAdmin
+  #                 - elasticache:DescribeCacheClusters
+  #                 - codedeploy:*
+  #                 - servicecatalog:*
+  #                 - apigateway:*
+  #                 - codebuild:*
+  #                 - sts:*
+  #                 - sqs:*
+  #                 - ecs:RegisterTaskDefinition
+  #                 - ecs:DeregisterTaskDefinition
+  #                 - ssm:*
+  #                 - logs:*
 
-                Resource: "*"
-                Effect: Allow
-            Version: "2012-10-17"
+  #               Resource: "*"
+  #               Effect: Allow
+  #           Version: "2012-10-17"
 
   CodeBuildEnsureTransform:
     Type: AWS::CodeBuild::Project
     Properties:
       Name: !Sub ${AWS::StackName}-DeploySite
       Description: Ensure that the template uses ttfm transform
-      ServiceRole: !GetAtt CloudFormationRole.Arn
+      ServiceRole: !Ref CloudFormationRole
       Artifacts:
         Type: CODEPIPELINE
       Environment:

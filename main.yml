@@ -8,6 +8,8 @@ Parameters:
     Type: String
   ArtifactsBucketName:
     Type: String
+  CloudFormationRole:
+    Type: String
 Resources:
   Frontend:
     Type: AWS::Serverless::Application
@@ -23,7 +25,7 @@ Resources:
   CodePipelines:
     Type: AWS::Serverless::Application
     Properties:
-      Location: https://s3.us-east-1.amazonaws.com/learning-ci-artifacts/staging/infrastructure/current/6fff3a8f9b63e943d10cc010b3e3917f.template
+      Location: https://s3.us-east-1.amazonaws.com/learning-ci-artifacts/staging/infrastructure/current/64c128274e42972b1b9032412fd0c9f7.template
       Parameters:
         FrontendDistributionId:
           Fn::GetAtt:
@@ -35,3 +37,5 @@ Resources:
           - Outputs.FrontendBucketName
         ArtifactsBucketName:
           Ref: ArtifactsBucketName
+        CloudFormationRole:
+          Ref: CloudFormationRole

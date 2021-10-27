@@ -8,6 +8,8 @@ Parameters:
     Type: String
   ArtifactsBucketName:
     Type: String
+  CloudFormationRole:
+    Type: String
 
 Resources:
 
@@ -28,3 +30,4 @@ Resources:
         FrontendDistributionId: !GetAtt Frontend.Outputs.CloudFrontDistributionId
         FrontendBucketName: !GetAtt Frontend.Outputs.FrontendBucketName
         ArtifactsBucketName: !Ref ArtifactsBucketName
+        CloudFormationRole: !Ref CloudFormationRole

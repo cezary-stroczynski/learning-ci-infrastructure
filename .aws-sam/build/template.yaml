@@ -8,6 +8,8 @@ Parameters:
     Type: String
   ArtifactsBucketName:
     Type: String
+  CloudFormationRole:
+    Type: String
 Resources:
   Frontend:
     Type: AWS::Serverless::Application
@@ -35,3 +37,5 @@ Resources:
           - Outputs.FrontendBucketName
         ArtifactsBucketName:
           Ref: ArtifactsBucketName
+        CloudFormationRole:
+          Ref: CloudFormationRole
