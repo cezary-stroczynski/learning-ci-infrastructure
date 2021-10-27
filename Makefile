@@ -28,8 +28,3 @@ upload-artifact-staging: build-staging
 
 deploy-staging: upload-artifact-staging
 	sam deploy --template-file $(TEMPLATE_FILE) --stack-name $(STAGING_STACK_NAME) --capabilities $(CAPABILITIES)  --region $(STAGING_REGION) --parameter-overrides $(STAGING_PARAMETERS)
-
-upload-artifact-staging: build-staging
-	sam package --output-template-file $(TEMPLATE_FILE) --s3-bucket $(STAGING_ARTIFACTS_BUCKET_NAME) --s3-prefix $(STAGING_ARTIFACTS_S3_PREFIX)/$(VERSION) --region $(STAGING_REGION)
-	zip $(ARTIFACT_NAME) $(TEMPLATE_FILE) $(STAGING_PARAMETERS_FILE) Makefile
-	aws s3 cp $(ARTIFACT_NAME) s3://$(STAGING_ARTIFACTS_BUCKET_NAME)/$(STAGING_ARTIFACTS_S3_PREFIX)/$(VERSION)/ --region $(STAGING_REGION)
