@@ -1,0 +1,428 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+
+Parameters:
+  ArtifactsBucketName:
+    Type: String
+    Description: Name of S3 bucket where .zip file with artifact is stored
+  CurrentTag:
+    Type: String
+    Default: current
+  Environment:
+    Type: String
+    Default: staging
+  FrontendDistributionId:
+    Type: String
+  FrontendBucketName:
+    Type: String
+  BuildType:
+    Type: String
+    Default: "LINUX_CONTAINER"
+    Description: The build container type to use for building the app
+  BuildComputeType:
+    Type: String
+    Default: "BUILD_GENERAL1_SMALL"
+    Description: The build compute type to use for building the app
+  BuildImage:
+    Type: String
+    Default: "aws/codebuild/standard:5.0"
+    Description: The build image to use for building the app
+
+Resources:
+  CloudFormationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+                - cloudformation.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: codepipeline-service
+          PolicyDocument:
+            Statement:
+              - Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketVersioning
+                Resource: "*"
+                Effect: Allow
+              - Action:
+                  - cloudformation:*
+                  - iam:*
+                  - lambda:*
+                  - s3:*
+                  - cloudfront:*
+                  - cloudtrail:*
+                  - codepipeline:*
+                  - route53:*
+                  - events:*
+                  - ec2:*
+                  - secretsmanager:*
+                  - cognito-idp:*
+                  - rds:*
+                  - elasticloadbalancing:*
+                  - ecs:DescribeClusters
+                  - servicecatalog:DescribeProductAsAdmin
+                  - elasticache:DescribeCacheClusters
+                  - codedeploy:*
+                  - servicecatalog:*
+                  - apigateway:*
+                  - codebuild:*
+                  - sts:*
+                  - sqs:*
+                  - ecs:RegisterTaskDefinition
+                  - ecs:DeregisterTaskDefinition
+                  - ssm:*
+                  - logs:*
+
+                Resource: "*"
+                Effect: Allow
+            Version: "2012-10-17"
+
+  CodeBuildEnsureTransform:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub ${AWS::StackName}-DeploySite
+      Description: Ensure that the template uses ttfm transform
+      ServiceRole: !GetAtt CloudFormationRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: !Ref BuildType
+        ComputeType: !Ref BuildComputeType
+        Image: !Sub ${BuildImage}
+      # SecondarySources:
+      #   - Type: 'S3'
+      #     Location: aws-sam-cli-managed-default-samclisourcebucket-1n6lcoaxqic7n/ensure_transform/ensure_transform.zip
+      #     SourceIdentifier: tools
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: !Sub |
+          version: 0.2
+          phases:
+            install:
+              runtime-versions:
+                python: 3.8
+                nodejs: 12.x
+              commands:
+                - pip install aws-sam-cli
+                - npm install -g jq.node
+            build:
+              commands:
+                - make deploy-${Environment}-ci
+  CodePipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+                - codebuild.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: codepipeline-service
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketVersioning
+                  - codebuild:*
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+                Effect: Allow
+              - Action:
+                  - s3:PutObject
+                Resource:
+                  - arn:aws:s3:::codepipeline*
+                Effect: Allow
+              - Action:
+                  - s3:*
+                  - iam:PassRole
+                  - cloudformation:*
+                Resource: "*"
+                Effect: Allow
+              - Action:
+                  - lambda:InvokeFunction
+                Effect: Allow
+                Resource:
+                  - !GetAtt InvalidateCloudFront.Arn
+
+  PipelineBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+
+  InfrastructurePipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      RoleArn: !GetAtt CodePipelineRole.Arn
+      Name: test-current-infrastructure
+      Stages:
+        - Name: Source
+          Actions:
+            - InputArtifacts: []
+              Name: Source
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Version: "1"
+                Provider: S3
+              OutputArtifacts:
+                - Name: SourceArtifacts
+              Configuration:
+                S3Bucket: !Ref ArtifactsBucketName
+                S3ObjectKey: staging/infrastructure/current/main.zip
+                PollForSourceChanges: False
+              RunOrder: 1
+
+        - Name: EnforeSecurityTransform
+          Actions:
+            - Name: EnforeSecurityTransform
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: "1"
+                Provider: CodeBuild
+              InputArtifacts:
+                - Name: SourceArtifacts
+              OutputArtifacts:
+                - Name: BuildArtifacts
+              Configuration:
+                ProjectName: !Ref CodeBuildEnsureTransform
+              RunOrder: 1
+
+        # - Name: Deploy
+        #   Actions:
+        #     - Name: UpdateStack
+        #       ActionTypeId:
+        #         Category: Deploy
+        #         Owner: AWS
+        #         Version: "1"
+        #         Provider: CloudFormation
+        #       InputArtifacts:
+        #         - Name: SourceArtifacts
+        #       Configuration:
+        #         ActionMode: CREATE_UPDATE
+        #         StackName: !Ref StackName
+        #         TemplatePath: SourceArtifacts::main.yml
+        #         TemplateConfiguration: !Sub SourceArtifacts::template-config.${Environment}.json
+        #         Capabilities: !Ref Capabilities
+        #         ChangeSetName: !Ref AWS::StackName
+        #         RoleArn: !GetAtt CloudFormationRole.Arn
+        #       RunOrder: 1
+
+      ArtifactStore:
+        Type: S3
+        Location: !Ref PipelineBucket
+
+  AmazonCloudWatchEventRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: cwe-pipeline-execution
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: codepipeline:StartPipelineExecution
+                Resource:
+                  - !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${InfrastructurePipeline}
+                  - !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${FrontendPipeline}
+
+  AmazonCloudWatchEventRuleInfrstructure:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+          - aws.s3
+        detail-type:
+          - "AWS API Call via CloudTrail"
+        detail:
+          eventSource:
+            - s3.amazonaws.com
+          eventName:
+            - CopyObject
+            - PutObject
+            - CompleteMultipartUpload
+          requestParameters:
+            bucketName:
+              - !Ref ArtifactsBucketName
+            key:
+              - !Sub ${Environment}/infrastructure/${CurrentTag}/main.zip
+      Targets:
+        - Arn: !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${InfrastructurePipeline}
+          RoleArn: !GetAtt AmazonCloudWatchEventRole.Arn
+          Id: codepipeline-AppPipeline
+
+  AWSCloudTrailBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref AWSCloudTrailBucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AWSCloudTrailAclCheck
+            Effect: Allow
+            Principal:
+              Service:
+                - cloudtrail.amazonaws.com
+            Action: s3:GetBucketAcl
+            Resource: !GetAtt AWSCloudTrailBucket.Arn
+          - Sid: AWSCloudTrailWrite
+            Effect: Allow
+            Principal:
+              Service:
+                - cloudtrail.amazonaws.com
+            Action: s3:PutObject
+            Resource:
+              !Join [
+                "",
+                [
+                  !GetAtt AWSCloudTrailBucket.Arn,
+                  "/AWSLogs/",
+                  !Ref "AWS::AccountId",
+                  "/*",
+                ],
+              ]
+            Condition:
+              StringEquals:
+                s3:x-amz-acl: bucket-owner-full-control
+
+  AWSCloudTrailBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+
+  AwsCloudTrail:
+    DependsOn:
+      - AWSCloudTrailBucketPolicy
+    Type: AWS::CloudTrail::Trail
+    Properties:
+      S3BucketName: !Ref AWSCloudTrailBucket
+      EventSelectors:
+        - DataResources:
+            - Type: AWS::S3::Object
+              Values:
+                - !Sub arn:aws:s3:::${ArtifactsBucketName}/${Environment}/infrastructure/${CurrentTag}/main.zip
+                - !Sub arn:aws:s3:::${ArtifactsBucketName}/${Environment}/webapp/${CurrentTag}/webapp.zip
+                - !Sub arn:aws:s3:::${ArtifactsBucketName}/${Environment}/admin-panel/${CurrentTag}/admin-panel.zip
+          ReadWriteType: WriteOnly
+      IncludeGlobalServiceEvents: false
+      IsLogging: true
+      IsMultiRegionTrail: false
+
+  FrontendPipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      RoleArn: !GetAtt CodePipelineRole.Arn
+      Name: webapp-react
+      Stages:
+        - Name: Source
+          Actions:
+            - InputArtifacts: []
+              Name: Source
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Version: "1"
+                Provider: S3
+              OutputArtifacts:
+                - Name: SourceArtifacts
+              Configuration:
+                S3Bucket: !Ref ArtifactsBucketName
+                S3ObjectKey: !Sub ${Environment}/webapp/${CurrentTag}/webapp.zip
+                PollForSourceChanges: False
+              RunOrder: 1
+        - Name: Deploy
+          Actions:
+            - Name: UpdateS3
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: "1"
+                Provider: S3
+              InputArtifacts:
+                - Name: SourceArtifacts
+              Configuration:
+                BucketName: !Ref FrontendBucketName
+                Extract: true
+              RunOrder: 1
+            - Name: InvalidateCloudFront
+              ActionTypeId:
+                Category: Invoke
+                Owner: AWS
+                Version: "1"
+                Provider: Lambda
+              InputArtifacts: []
+              OutputArtifacts: []
+              Configuration:
+                FunctionName: !Ref InvalidateCloudFront
+                UserParameters: !Ref FrontendDistributionId
+              RunOrder: 2
+
+      ArtifactStore:
+        Type: S3
+        Location: !Ref PipelineBucket
+
+  
+
+  InvalidateCloudFront:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: invalidateCloudFront.zip
+      Handler: index.default
+      Runtime: nodejs14.x
+      Policies:
+        - Statement:
+            - Action:
+                - cloudfront:CreateInvalidation
+                - codepipeline:PutJobSuccessResult
+                - codepipeline:PutJobFailureResult
+              Effect: Allow
+              Resource: "*"
+
+  AmazonCloudWatchEventRuleFrontend:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+          - aws.s3
+        detail-type:
+          - "AWS API Call via CloudTrail"
+        detail:
+          eventSource:
+            - s3.amazonaws.com
+          eventName:
+            - CopyObject
+            - PutObject
+            - CompleteMultipartUpload
+          requestParameters:
+            bucketName:
+              - !Ref ArtifactsBucketName
+            key:
+              - !Sub ${Environment}/webapp/${CurrentTag}/webapp.zip
+      Targets:
+        - Arn: !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${FrontendPipeline}
+          RoleArn: !GetAtt AmazonCloudWatchEventRole.Arn
+          Id: codepipeline-AppPipeline

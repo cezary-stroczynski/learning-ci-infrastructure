@@ -1,0 +1,8 @@
+{
+  "Parameters": {
+    "ArtifactsBucketName": "learning-ci-artifacts",
+    "CertificateArn": "arn:aws:acm:us-east-1:986828294877:certificate/74b6f325-83a7-41ed-8241-f640a7a1a305",
+    "Domain": "cezary-test.rumblefish.dev",
+    "HostedZoneId": "Z07761942W17X48R4UORM"
+  }
+}

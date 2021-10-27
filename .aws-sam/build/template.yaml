@@ -1,0 +1,37 @@
+Transform: AWS::Serverless-2016-10-31
+Parameters:
+  CertificateArn:
+    Type: String
+  HostedZoneId:
+    Type: String
+  Domain:
+    Type: String
+  ArtifactsBucketName:
+    Type: String
+Resources:
+  Frontend:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: Frontend/template.yaml
+      Parameters:
+        DomainName:
+          Fn::Sub: app.${Domain}
+        HostedZoneId:
+          Ref: HostedZoneId
+        CertificateArn:
+          Ref: CertificateArn
+  CodePipelines:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: CodePipelines/template.yaml
+      Parameters:
+        FrontendDistributionId:
+          Fn::GetAtt:
+          - Frontend
+          - Outputs.CloudFrontDistributionId
+        FrontendBucketName:
+          Fn::GetAtt:
+          - Frontend
+          - Outputs.FrontendBucketName
+        ArtifactsBucketName:
+          Ref: ArtifactsBucketName
