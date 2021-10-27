@@ -4,7 +4,7 @@ Transform: AWS::Serverless-2016-10-31
 Parameters:
   ArtifactsBucketName:
     Type: String
-    Description: Name of S3 bucket where .zip file with artifact is stored
+    Description: The name of S3 bucket where .zip file with artifact is stored
   CurrentTag:
     Type: String
     Default: current
