@@ -28,3 +28,6 @@ upload-artifact-staging: build-staging
 
 deploy-staging: upload-artifact-staging
 	sam deploy --template-file $(TEMPLATE_FILE) --stack-name $(STAGING_STACK_NAME) --capabilities $(CAPABILITIES)  --region $(STAGING_REGION) --parameter-overrides $(STAGING_PARAMETERS)
+
+deploy-staging-ci:
+	sam deploy --template-file $(TEMPLATE_FILE) --stack-name $(STAGING_STACK_NAME) --capabilities $(CAPABILITIES)  --region $(STAGING_REGION) --parameter-overrides $(STAGING_PARAMETERS)
