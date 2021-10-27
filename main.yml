@@ -1,0 +1,37 @@
+Transform: AWS::Serverless-2016-10-31
+Parameters:
+  CertificateArn:
+    Type: String
+  HostedZoneId:
+    Type: String
+  Domain:
+    Type: String
+  ArtifactsBucketName:
+    Type: String
+Resources:
+  Frontend:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: https://s3.us-east-1.amazonaws.com/learning-ci-artifacts/staging/infrastructure/current/12c5879aef839ff58567bdf0eeb08cf3.template
+      Parameters:
+        DomainName:
+          Fn::Sub: app.${Domain}
+        HostedZoneId:
+          Ref: HostedZoneId
+        CertificateArn:
+          Ref: CertificateArn
+  CodePipelines:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: https://s3.us-east-1.amazonaws.com/learning-ci-artifacts/staging/infrastructure/current/6fff3a8f9b63e943d10cc010b3e3917f.template
+      Parameters:
+        FrontendDistributionId:
+          Fn::GetAtt:
+          - Frontend
+          - Outputs.CloudFrontDistributionId
+        FrontendBucketName:
+          Fn::GetAtt:
+          - Frontend
+          - Outputs.FrontendBucketName
+        ArtifactsBucketName:
+          Ref: ArtifactsBucketName
