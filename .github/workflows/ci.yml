@@ -1,0 +1,31 @@
+name: 'CI deploy infrastructure staging to s3 and trigger infrastructure to update stack'
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  aws-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2.3.1
+      with:
+        persist-credentials: false
+
+    - name: Use Node.js v${{ env.NODE_VERSION }}
+      uses: actions/setup-node@master
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+
+    - name: Install additional dependencies
+      run: |
+        npm install -g node-lambda
+
+    - name: Update infrastructure stack
+      run: make upload-artifact-staging
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
